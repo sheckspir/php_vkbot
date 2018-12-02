@@ -19,13 +19,13 @@ function vkApi_messagesSendKeyboard($peer_id, $message, $attachments = array(), 
     if (is_null($attachments)) {
         $attachments = array();
     }
-    log_msg("buttonsInfo = " . implode($buttonsInfo));
+    
     $buttons1 = [];
     $i = 0;
     foreach ($buttonsInfo as $item) {
         log_msg("info item = " . implode($item));
         $buttons1[$i][0]['action']['type'] = 'text';
-        $buttons1[$i][0]['action']['payload'] = json_encode($item[0], JSON_UNESCAPED_UNICODE);
+        $buttons1[$i][0]['action']['payload'] = json_encode($item[0], JSON_FORCE_OBJECT);
         $buttons1[$i][0]['action']['label'] = $item[1];
         $buttons1[$i][0]['color'] = $item[2];
         $i++;

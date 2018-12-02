@@ -14,34 +14,44 @@ function handleNewMessage($data) {
         }
         //иначе игнорим, видимо нам что-то пишут просто так
     } else {
-        $type = $payload->{PAYLOAD_TYPE_QUESTION};
-        if ($type == "order_machine") {
-            log_msg("payload machine ". $type);
-            handleMachineMessage($payload, $userId);
-        } else {
-            log_msg("payload other ". $type);
-            bot_sendFirstMessage($userId);
+        $fileName = "";
+        foreach ($payload as $payloadValue) {
+            $fileName = $fileName."_".strval($payloadValue);
         }
+        $fileName = trim($fileName, "_");
+        if (empty($fileName)) {
+            $fileName = "0";
+        }
+        log_msg("find file ". $fileName);
+        sendMessageFromFile($fileName, $userId);
     }
 
 }
 
 function bot_sendFirstMessage($user_id) {
-    $users_get_response = vkApi_usersGet($user_id);
+    try {
+        sendMessageFromFile("0", $user_id);
+    } catch (Exception $exc) {
+        log_error($exc);
+        throw $exc;
+    }
 
-    $user = array_pop($users_get_response);
-    $msg = "Здравствуйте, {$user['first_name']}! Я помогу вам оперативно решить любой ваш вопрос";
-
-
-    $buttons = [];
-    $buttons[0] = [[PAYLOAD_TYPE_QUESTION => "order_machine"], "Станок", "default"];
-//    $buttons[0] = [[PAYLOAD_TYPE_QUESTION => MACHINES_TYPE], "Станок", "default"];
-    $buttons[1] = [[PAYLOAD_TYPE_QUESTION => "1"], "Комплектующие", "default"];
-    $buttons[2] = [[PAYLOAD_TYPE_QUESTION => "2"], "Вопросы по доставке", "default"];
-    $buttons[3] = [[PAYLOAD_TYPE_QUESTION => "3"], "Техническая поддержка", "default"];
-    $buttons[4] = [[PAYLOAD_TYPE_QUESTION => "4"], "Отзывы и предложения", "default"];
-
-    vkApi_messagesSendKeyboard($user_id, $msg, null, $buttons);
+    
+    
+//    $users_get_response = vkApi_usersGet($user_id);
+//
+//    $user = array_pop($users_get_response);
+//    $msg = "Здравствуйте, {$user['first_name']}! Я помогу вам оперативно решить любой ваш вопрос";
+//
+//
+//    $buttons = [];
+//    $buttons[0] = [[PAYLOAD_TYPE_QUESTION => "order_machine"], "Станок", "default"];
+//    $buttons[1] = [[PAYLOAD_TYPE_QUESTION => "1"], "Комплектующие", "default"];
+//    $buttons[2] = [[PAYLOAD_TYPE_QUESTION => "2"], "Вопросы по доставке", "default"];
+//    $buttons[3] = [[PAYLOAD_TYPE_QUESTION => "3"], "Техническая поддержка", "default"];
+//    $buttons[4] = [[PAYLOAD_TYPE_QUESTION => "4"], "Отзывы и предложения", "default"];
+//
+//    vkApi_messagesSendKeyboard($user_id, $msg, null, $buttons);
 
 }
 
@@ -72,6 +82,56 @@ function _bot_uploadVoiceMessage($user_id, $file_name) {
 }
 
 
+function sendMessageFromFile($fileName, $userId) {
+    $filePath = BOT_MESSAGES_DIRECTORY."/".$fileName.".json";
+    if (file_exists($filePath)) {
+        $messageContents = json_decode(file_get_contents($filePath), true);
+        
+        $messageText = $messageContents["text"];
+        $buttons = [];
+        if (isset($messageContents["buttons"])) {
+            $payloadsNumbers = explode("_", $fileName);
+            $currentPayloadNumber = count($payloadsNumbers);
+            $buttonsData = $messageContents["buttons"];
+            for ($i = 0; $i < count($buttonsData); $i++) {
+                $currentButtonData = $buttonsData[$i];
+                $message = $currentButtonData["text"];
+                $payload = $payloadsNumbers;
+                $payload[$currentPayloadNumber] = strval($currentButtonData["code"]);
+                $color;
+                if (isset($currentButtonData["color"])) {
+                    $color = $currentButtonData["color"];
+                } else {
+                    $color = "default";
+                }
+                $payloadVK = array();
+                if (strcmp($payload[$currentPayloadNumber], "START") == 0) {
+                    $payloadVK[0] = "0";
+                } elseif (strcmp($payload[$currentPayloadNumber], "BACK") == 0) {
+                    if (count($payload) <= 2) {
+                        $payloadVK[0] = "0";
+                    } else {
+                        for ($j = 0; $j < count($payload) - 2; $j++) {
+                            $payloadVK[strval($j)] = strval($payload[$j]);
+                        }
+                    }
+                    
+                } else {
+                    for ($j = 0; $j < count($payload); $j++) {
+                        $payloadVK[strval($j)] = strval($payload[$j]);
+                    }
+                }
+                $buttons[$i] = [$payloadVK, $message, $color];
+            }      
+        }
+        
+        vkApi_messagesSendKeyboard($userId, $messageText, null, $buttons);
+        
+    } else {
+        log_error("have no file ".$filePath);
+//        bot_sendFirstMessage($user_id);
+    }
+}
 
 
 function handleMachineMessage($payload, $userId) {
