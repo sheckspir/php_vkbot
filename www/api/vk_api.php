@@ -1,19 +1,59 @@
 <?php
 
-define('VK_API_VERSION', '5.67'); //Используемая версия API
+define('VK_API_VERSION', '5.87'); //Используемая версия API
 define('VK_API_ENDPOINT', 'https://api.vk.com/method/');
 
+define('VK_PAYLOAD', 'payload');
+define('VK_CONVERSATION_MESSAGE_ID', 'conversation_message_id');
+define('VK_FROM_USER_ID', 'from_id');
+
 function vkApi_messagesSend($peer_id, $message, $attachments = array()) {
-  return _vkApi_call('messages.send', array(
-    'peer_id'    => $peer_id,
-    'message'    => $message,
-    'attachment' => implode(',', $attachments)
-  ));
+    return _vkApi_call('messages.send', array(
+        'peer_id'    => $peer_id,
+        'message'    => $message,
+        'attachment' => implode(',', $attachments)
+    ));
+}
+
+function vkApi_messagesSendKeyboard($peer_id, $message, $attachments = array(), $buttonsInfo) {
+    if (is_null($attachments)) {
+        $attachments = array();
+    }
+    log_msg("buttonsInfo = " . implode($buttonsInfo));
+    $buttons1 = [];
+    $i = 0;
+    foreach ($buttonsInfo as $item) {
+        log_msg("info item = " . implode($item));
+        $buttons1[$i][0]['action']['type'] = 'text';
+        $buttons1[$i][0]['action']['payload'] = json_encode($item[0], JSON_UNESCAPED_UNICODE);
+        $buttons1[$i][0]['action']['label'] = $item[1];
+        $buttons1[$i][0]['color'] = $item[2];
+        $i++;
+    }
+    $buttons = array(
+        "one_time" => true,
+        "buttons" => $buttons1);
+    $buttons = json_encode($buttons, JSON_UNESCAPED_UNICODE);
+
+    log_msg("buttons = " . $buttons);
+    return _vkApi_call('messages.send', array(
+        'peer_id'    => $peer_id,
+        'message'    => $message,
+    'attachment' => implode(',', $attachments),
+    'keyboard'   => $buttons
+    ));
+}
+
+function vkApi_messagesSendEmpty($peer_id, $message) {
+    return _vkApi_call('messages.send', array(
+        'peer_id'    => $peer_id,
+        'message'    => $message,
+    ));
 }
 
 function vkApi_usersGet($user_id) {
   return _vkApi_call('users.get', array(
-    'user_id' => $user_id,
+    'user_ids' => $user_id,
   ));
 }
 
@@ -63,11 +103,14 @@ function _vkApi_call($method, $params = array()) {
 
   curl_close($curl);
 
+  log_msg($url.'\n'.$json);
+
   $response = json_decode($json, true);
   if (!$response || !isset($response['response'])) {
     log_error($json);
     throw new Exception("Invalid response for {$method} request");
   }
+
 
   return $response['response'];
 }
